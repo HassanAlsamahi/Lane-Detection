@@ -69,23 +69,28 @@ def PerspectiveTransform(img):
     src2 = np.float32([[160,355],[426,355],[350,288],[275,288]])
     dst2 = np.float32([[160,355],[426,355],[426,0],[160,0]])
 
+    src3 = np.float32([[130,342],[530,342],[347,228],[297,228]])
+    dst3 = np.float32([[130,img.shape[0]],[530,img.shape[0]],[530,0],[130,0]])
 
-    Mtx = cv2.getPerspectiveTransform(src,dst)
+    src4 = np.float32([[264,249],[384,249],[347,228],[297,228]])
+    dst4 = np.float32([[264,img.shape[0]],[384,img.shape[0]],[384,0],[264,0]])
+
+    Mtx = cv2.getPerspectiveTransform(src3,dst3)
     warped = cv2.warpPerspective(img,Mtx,img_size,cv2.INTER_LINEAR)
 
     return warped
 
-def SlidingWindows(binary_warped,nwindows = 9,widt = 100 ,minpix = 50):
-    bottom_half = img[img.shape[0]//2:,:]
+def SlidingWindows(binary_warped,nwindows = 9,width = 100 ,minpix = 50):
+    bottom_half = binary_warped[binary_warped.shape[0]//2:,:]
     histogram = np.sum(bottom_half, axis=0)
-    out_img = np.dstack((img,img,img))*255
+    out_img = np.dstack((binary_warped,binary_warped,binary_warped))*255
 
     midpoint = np.int(histogram.shape[0]//2)
     leftx_base = np.argmax(histogram[:midpoint])
     rightx_base = np.argmax(histogram[midpoint:]) + midpoint
 
     #Height of each window
-    windows_height = np.int(binary_warped[0]//nwindows)
+    windows_height = np.int(binary_warped.shape[0]//nwindows)
     #Identify x,y for the lanes line
     nonzero = binary_warped.nonzero()
     nonzeroy = np.array(nonzero[0])
@@ -99,12 +104,12 @@ def SlidingWindows(binary_warped,nwindows = 9,widt = 100 ,minpix = 50):
 
     for window in range(nwindows):
         window_y_low = binary_warped.shape[0] - (window+1)*windows_height
-        window_y_high = binary_warped.shape[0] - window*window_height
+        window_y_high = binary_warped.shape[0] - window*windows_height
 
-        window_xleft_low = leftx_current - margin
-        window_xleft_high = leftx_current + margin
-        window_xright_low = rightx_current - margin
-        window_xright_high = rightx_current + margin
+        window_xleft_low = leftx_current - width
+        window_xleft_high = leftx_current + width
+        window_xright_low = rightx_current - width
+        window_xright_high = rightx_current + width
 
         #Draw the windows of the left lane
         cv2.rectangle(out_img,(window_xleft_low,window_y_low),(window_xleft_high,window_y_high),(0,255,0),2)
@@ -112,9 +117,9 @@ def SlidingWindows(binary_warped,nwindows = 9,widt = 100 ,minpix = 50):
         cv2.rectangle(out_img,(window_xright_low,window_y_low),(window_xright_high,window_y_high),(0,0,255),2)
 
         #Identify the nonzero values of x and y in each left window
-        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= window_xleft_low) & (nonzerox < window_xleft_high)).nonzero()[0]
+        good_left_inds = ((nonzeroy >= window_y_low) & (nonzeroy < window_y_high) & (nonzerox >= window_xleft_low) & (nonzerox < window_xleft_high)).nonzero()[0]
         #Identify the nonzero values of x and y in each right window
-        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= window_xright_low) & (nonzerox < window_xright_high)).nonzero()[0]
+        good_right_inds = ((nonzeroy >= window_y_low) & (nonzeroy < window_y_high) & (nonzerox >= window_xright_low) & (nonzerox < window_xright_high)).nonzero()[0]
 
         #Append this in left and right lanes
         left_lane_inds.append(good_left_inds)
@@ -126,31 +131,29 @@ def SlidingWindows(binary_warped,nwindows = 9,widt = 100 ,minpix = 50):
             rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
 
 
-        try:
-            left_lane_inds = np.concatenate(left_lane_inds)
-            right_lane_inds = np.concatenate(right_lane_inds)
-        except ValueError:
-            pass
-
-        #EXtract left and right line pixels positions
-        leftx = nonzerox[left_lane_inds]
-        lefty = nonzeroy[left_lane_inds]
-        rightx = nonzerox[right_lane_inds]
-        righty = nonzeroy[right_lane_inds]
-
-        return leftx,lefty,rightx,righty,out_img
-
-def PolyFit(binary_warped):
-    #Find our Lane Lines pixels
-    leftx,lefty,rightx,righty,out_img = SlidingWindows(binary_warped)
     try:
-        left_fit = np.polyfit(lefty,leftx,2)
-        right_fit = np.polyfit(righty,rightx,2)
-    except :
+        left_lane_inds = np.concatenate(left_lane_inds)
+        right_lane_inds = np.concatenate(right_lane_inds)
+    except ValueError:
         pass
 
+    #EXtract left and right line pixels positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+
+    return leftx,lefty,rightx,righty,out_img
+
+
+def PolyFit(binary_warped):
+    img = binary_warped.shape
+    leftx,lefty,rightx,righty,out_img = SlidingWindows(binary_warped)
+    #Find our Lane Lines pixels
+    left_fit = np.polyfit(lefty,leftx,2)
+    right_fit = np.polyfit(righty,rightx,2)
     # Generate x and y values for plotting
-    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    ploty = np.linspace(0, img[0]-1, img[0] )
     try:
         left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
         right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
@@ -171,22 +174,33 @@ def PolyFit(binary_warped):
 
     return out_img
 
-video = cv2.VideoCapture("test2.mp4")
+
+
+
+video = cv2.VideoCapture("Vehicle Detection Raw Video.mp4")
 
 #mtx,dist,img = CameraCal()
+
 
 while video.isOpened():
     ret,frame = video.read()
     #undistort = cv2.undistort(frame,mtx,dist,None,mtx)
 
+
     Mask,s = threshold(frame,(100,255))
     transformed = PerspectiveTransform(Mask)
-    output = SlidingWindows(transformed)
+    output = PolyFit(transformed)
+
+
 
 
     cv2.imshow("Warped",transformed)
     cv2.imshow("Frame",frame)
     cv2.imshow("Mask",Mask)
+    cv2.imshow("Result",output)
+
+    #plt.imshow(output)
+    #plt.show()
 
     """
     plt.plot(113,535,"*")
