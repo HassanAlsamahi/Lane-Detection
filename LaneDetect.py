@@ -140,6 +140,37 @@ def SlidingWindows(binary_warped,nwindows = 9,widt = 100 ,minpix = 50):
 
         return leftx,lefty,rightx,righty,out_img
 
+def PolyFit(binary_warped):
+    #Find our Lane Lines pixels
+    leftx,lefty,rightx,righty,out_img = SlidingWindows(binary_warped)
+    try:
+        left_fit = np.polyfit(lefty,leftx,2)
+        right_fit = np.polyfit(righty,rightx,2)
+    except :
+        pass
+
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    try:
+        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+    except TypeError:
+        # Avoids an error if `left` and `right_fit` are still none or incorrect
+        print('The function failed to fit a line!')
+        left_fitx = 1*ploty**2 + 1*ploty
+        right_fitx = 1*ploty**2 + 1*ploty
+
+    ## Visualization ##
+    # Colors in the left and right lane regions
+    out_img[lefty, leftx] = [255, 0, 0]
+    out_img[righty, rightx] = [0, 0, 255]
+
+    # Plots the left and right polynomials on the lane lines
+    plt.plot(left_fitx, ploty, color='yellow')
+    plt.plot(right_fitx, ploty, color='yellow')
+
+    return out_img
+
 video = cv2.VideoCapture("test2.mp4")
 
 #mtx,dist,img = CameraCal()
@@ -150,6 +181,7 @@ while video.isOpened():
 
     Mask,s = threshold(frame,(100,255))
     transformed = PerspectiveTransform(Mask)
+    output = SlidingWindows(transformed)
 
 
     cv2.imshow("Warped",transformed)
