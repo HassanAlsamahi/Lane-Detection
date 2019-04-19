@@ -4,33 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import glob
 
-def CameraCal():
-    images = glob.glob("D:\hassan work\Programming Projects\Python projects\OpenCV projects\Intro to CV udacity course\Camera Calibration\GOPR00*.jpg")
 
-    objPoints = [] #3D points in world
-    imgPoints = [] #2D points in image plane
-
-    objP = np.zeros((6*8,3),np.float32)
-    objP[:,:2] = np.mgrid[0:8,0:6].T.reshape(-1,2)
-
-    for fname in images:
-
-        img = cv2.imread(fname)
-
-        #convert image to grayscale
-        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-
-        #Find the chess boards corners
-        ret,corners = cv2.findChessboardCorners(gray,(8,6),None)
-
-        if ret is True:
-            imgPoints.append(corners)
-            objPoints.append(objP)
-            cv2.drawChessboardCorners(img,(8,6),corners,ret)
-
-    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objPoints,imgPoints,gray.shape[::-1],None,None)
-
-    return mtx,dist,img
 
 def threshold(img,ColorThreshold = (120,250),GradientThreshold = (80,255),KernelSize=15):
     #convert the colors to hls
@@ -262,22 +236,8 @@ while video.isOpened():
     #plt.imshow(output)
     #plt.show()
 
-    """
-    plt.plot(113,535,"*")
-    plt.plot(824,535,"*")
-    plt.plot(394,363,"*")
-    plt.plot(565,363,"*")
-    plt.imshow(frame)
-    #plt.plot(out_img)
-    plt.show()
-    """
 
     if cv2.waitKey(25) & 0xFF == ord("q"):
         break
-"""
-print(mtx)
-print(dist)
-cv2.imshow("image",img)
-cv2.waitKey(0)
-"""
+
 video.release()
