@@ -198,10 +198,16 @@ while video.isOpened():
     print("Right Lane Curve", right_lane_radius)
     print("----------------------------------------------------")
 
-    '''
+
+
     plt.imshow(output)
     plt.show()
-    '''
+
+    state = input()
+    if state == "x":
+        break
+
+
 
     if cv2.waitKey(25) & 0xFF == ord("q"):
         break
