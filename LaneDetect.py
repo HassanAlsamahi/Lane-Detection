@@ -4,7 +4,33 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import glob
 
+def CameraCal():
+    images = glob.glob("D:\hassan work\Programming Projects\Python projects\OpenCV projects\Intro to CV udacity course\Camera Calibration\GOPR00*.jpg")
 
+    objPoints = [] #3D points in world
+    imgPoints = [] #2D points in image plane
+
+    objP = np.zeros((6*8,3),np.float32)
+    objP[:,:2] = np.mgrid[0:8,0:6].T.reshape(-1,2)
+
+    for fname in images:
+
+        img = cv2.imread(fname)
+
+        #convert image to grayscale
+        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+        #Find the chess boards corners
+        ret,corners = cv2.findChessboardCorners(gray,(8,6),None)
+
+        if ret is True:
+            imgPoints.append(corners)
+            objPoints.append(objP)
+            cv2.drawChessboardCorners(img,(8,6),corners,ret)
+
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objPoints,imgPoints,gray.shape[::-1],None,None)
+
+    return mtx,dist,img
 
 def threshold(img,ColorThreshold = (120,250),GradientThreshold = (80,255),KernelSize=15):
     #convert the colors to hls
@@ -146,69 +172,29 @@ def PolyFit(binary_warped):
     plt.plot(left_fitx, ploty, color='yellow')
     plt.plot(right_fitx, ploty, color='yellow')
 
-    return out_img
+    return out_img,left_fitx,right_fitx,ploty
 
-def search_around_poly(binary_warped,left_fit,right_fit,width = 100):
-    # HYPERPARAMETER
-    # Choose the width of the width around the previous polynomial to search
-    # The quiz grader expects 100 here, but feel free to tune on your own!
-    width = 100
+def Measure_curvature(left,right,ploty):
 
-    # Grab activated pixels
-    nonzero = binary_warped.nonzero()
-    nonzeroy = np.array(nonzero[0])
-    nonzerox = np.array(nonzero[1])
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30/720 # meters per pixel in y dimension
+    xm_per_pix = 3.7/700 # meters per pixel in x dimension
 
-    ### TO-DO: Set the area of search based on activated x-values ###
-    ### within the +/- width of our polynomial function ###
-    ### Hint: consider the window areas for the similarly named variables ###
-    ### in the previous quiz, but change the windows to our new search area ###
-    left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy +
-                    left_fit[2] - width)) & (nonzerox < (left_fit[0]*(nonzeroy**2) +
-                    left_fit[1]*nonzeroy + left_fit[2] + width)))
-    right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy +
-                    right_fit[2] - width)) & (nonzerox < (right_fit[0]*(nonzeroy**2) +
-                    right_fit[1]*nonzeroy + right_fit[2] + width)))
+    # Start by generating our fake example data
+    # Make sure to feed in your real data instead in your project!
 
-    # Again, extract left and right line pixel positions
-    leftx = nonzerox[left_lane_inds]
-    lefty = nonzeroy[left_lane_inds]
-    rightx = nonzerox[right_lane_inds]
-    righty = nonzeroy[right_lane_inds]
 
-    # Fit new polynomials
-    left_fitx, right_fitx, ploty = PolyFit(binary_warped)
+    # Define y-value where we want radius of curvature
+    # We'll choose the maximum y-value, corresponding to the bottom of the image
+    y_eval = np.max(ploty)
 
-    ## Visualization ##
-    # Create an image to draw on and an image to show the selection window
-    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
-    window_img = np.zeros_like(out_img)
-    # Color in left and right line pixels
-    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    # Calculation of R_curve (radius of curvature)
+    left_curverad = ((1 + (2*left[0]*y_eval*ym_per_pix + left[1])**2)**1.5) / np.absolute(2*left[0])
+    right_curverad = ((1 + (2*right[0]*y_eval*ym_per_pix + right[1])**2)**1.5) / np.absolute(2*right[0])
 
-    # Generate a polygon to illustrate the search window area
-    # And recast the x and y points into usable format for cv2.fillPoly()
-    left_line_window1 = np.array([np.transpose(np.vstack([left_fitx-width, ploty]))])
-    left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx+width,
-                              ploty])))])
-    left_line_pts = np.hstack((left_line_window1, left_line_window2))
-    right_line_window1 = np.array([np.transpose(np.vstack([right_fitx-width, ploty]))])
-    right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx+width,
-                              ploty])))])
-    right_line_pts = np.hstack((right_line_window1, right_line_window2))
+    return left_curverad, right_curverad
 
-    # Draw the lane onto the warped blank image
-    cv2.fillPoly(window_img, np.int_([left_line_pts]), (0,255, 0))
-    cv2.fillPoly(window_img, np.int_([right_line_pts]), (0,255, 0))
-    result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
 
-    # Plot the polynomial lines onto the image
-    plt.plot(left_fitx, ploty, color='yellow')
-    plt.plot(right_fitx, ploty, color='yellow')
-    ## End visualization steps ##
-
-    return result
 
 
 video = cv2.VideoCapture("Vehicle Detection Raw Video.mp4")
@@ -223,7 +209,8 @@ while video.isOpened():
 
     Mask,s = threshold(frame,(100,255))
     transformed = PerspectiveTransform(Mask)
-    output = PolyFit(transformed)
+    output,left_curve,right_curve, ploty = PolyFit(transformed)
+    left_lane_radius, right_lane_radius = Measure_curvature(left_curve,right_curve,ploty)
 
 
 
@@ -233,8 +220,19 @@ while video.isOpened():
     cv2.imshow("Mask",Mask)
     cv2.imshow("Result",output)
 
-    #plt.imshow(output)
-    #plt.show()
+    print("Left Lane Curve", left_lane_radius)
+    print("Right Lane Curve", right_lane_radius)
+    print("----------------------------------------------------")
+
+
+
+    plt.imshow(output)
+    plt.show()
+
+    state = input()
+    if state == "x":
+        break
+
 
 
     if cv2.waitKey(25) & 0xFF == ord("q"):
